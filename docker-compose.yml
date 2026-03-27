@@ -1,0 +1,121 @@
+services:
+
+  # ─────────────────────────────────────────
+  # POSTGRES — Base de datos principal
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    # 'alpine' es una versión mínima de Linux, ocupa mucho menos espacio
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Docker lee estas variables del fichero .env automáticamente
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # pg_data es un volumen nombrado: los datos sobreviven aunque
+      # destruyas el contenedor. Sin esto, perderías la DB al hacer
+      # 'docker compose down'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      # El healthcheck hace que Docker sepa si postgres está REALMENTE
+      # listo para aceptar conexiones, no solo que el proceso arrancó.
+      # Otros servicios esperan a que esto sea 'healthy' antes de arrancar.
+
+  # ─────────────────────────────────────────
+  # REDIS — Caché y broker de Celery
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # MIGRATIONS — Aplica migraciones Alembic
+  # ─────────────────────────────────────────
+  migrations:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    # Este contenedor ejecuta las migraciones y luego MUERE (exit 0)
+    # Es un "init container": hace su trabajo y desaparece
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+        # No empieza hasta que postgres confirme que está healthy
+
+  # ─────────────────────────────────────────
+  # API — FastAPI con Uvicorn
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+      # "puerto_en_tu_maquina:puerto_en_el_contenedor"
+      # Así accedes a la API desde tu navegador en localhost:8000
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ENVIRONMENT: ${ENVIRONMENT}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+        # Espera a que migrations termine con éxito (exit 0)
+      redis:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────
+  # WORKER — Celery para tareas en background
+  # ─────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.worker worker --loglevel=info
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ENVIRONMENT: ${ENVIRONMENT}
+    depends_on:
+      - api
+      # Worker depende de api porque comparten el mismo código base
+
+  # ─────────────────────────────────────────
+  # FRONTEND — React compilado servido por Nginx
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+      # React compilado corre en el puerto 80 dentro del contenedor
+      # Lo mapeamos al 3000 de tu máquina
+    depends_on:
+      - api
+
+# ─────────────────────────────────────────
+# VOLUMES — Datos que persisten
+# ─────────────────────────────────────────
+volumes:
+  pg_data:
+  # Declara el volumen nombrado. Docker lo gestiona automáticamente.
+  # Para ver dónde guarda los datos: docker volume inspect finsight_pg_data

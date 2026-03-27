@@ -1,0 +1,27 @@
+# Este fichero se aplica AUTOMÁTICAMENTE en desarrollo
+# Añade hot-reload y expone puertos extra para debugging
+# En producción simplemente no existe este fichero
+
+services:
+
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # --reload hace que FastAPI se reinicie automáticamente cuando
+    # cambias un fichero Python. Imprescindible en desarrollo.
+    volumes:
+      - ./backend:/app
+      # Monta tu carpeta local dentro del contenedor.
+      # Cualquier cambio que hagas en VS Code se refleja
+      # instantáneamente sin reconstruir la imagen Docker.
+
+  postgres:
+    ports:
+      - "5432:5432"
+      # Expone postgres a tu máquina local.
+      # Así puedes conectarte con DBeaver o TablePlus para
+      # inspeccionar la base de datos visualmente durante el desarrollo.
+
+  redis:
+    ports:
+      - "6379:6379"
+      # Igual para Redis, útil para debuggear con RedisInsight.
