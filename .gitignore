@@ -205,3 +205,28 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Variables de entorno — NUNCA subir al repo
+.env
+backend/.env
+
+# Carpetas de entorno virtual Python
+venv/
+.venv/
+env/
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Build de React
+frontend/dist/
+frontend/node_modules/
+
+# Logs
+*.log
+
+# VS Code
+.vscode/settings.json
