@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # --- OpenAI ---
-    OPENAI_API_KEY: str = "PENDIENTE_FASE_4"
+    # --- GROQ ---
+    GROQ_API_KEY: str = "PENDIENTE_FASE_4"
 
     # --- Entorno ---
     ENVIRONMENT: str = "development"
