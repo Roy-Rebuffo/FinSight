@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.core.config import settings
+from langgraph.checkpoint.postgres import PostgresSaver
 
 
 # ── Engine ────────────────────────────────────────────────────────────
@@ -78,3 +79,32 @@ def verify_database_connection() -> bool:
     except Exception as e:
         print(f"Error conectando a la base de datos: {e}")
         return False
+
+# ── PostgresSaver para LangGraph ───────────────────────────────────────
+# Esta clase permite a LangGraph guardar checkpoints en PostgreSQL.
+def get_postgres_saver() -> PostgresSaver:
+    """
+    Crea un PostgresSaver para LangGraph.
+    Usa la misma base de datos que SQLAlchemy pero en un
+    esquema separado 'langgraph' para no mezclar tablas.
+
+    PostgresSaver guarda el estado completo del grafo después
+    de cada nodo, permitiendo reanudar conversaciones.
+    """
+    return PostgresSaver.from_conn_string(
+        settings.DATABASE_URL.replace(
+            "postgresql+psycopg2://",
+            "postgresql://"
+        )
+    )
+
+
+def init_langgraph_tables():
+    """
+    Crea las tablas que necesita LangGraph en PostgreSQL.
+    Se llama una vez al arrancar la aplicación.
+    Las tablas son: checkpoints, checkpoint_writes, checkpoint_migrations.
+    """
+    with get_postgres_saver() as saver:
+        saver.setup()
+    print("LangGraph: tablas inicializadas OK")
